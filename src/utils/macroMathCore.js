@@ -681,6 +681,8 @@ export function runFullMacroCmeSimulation(inputs) {
   const ustForecast = assetForecasts.find((a) => a.id === 'us-10y-treasury')?.blendedExpectedReturn ?? 4.0;
   const equityRiskPremium = round2(eqForecast - ustForecast);
 
+  const part2BuildingBlocks = calculatePart2BuildingBlocks(inputs, growthInfo, policyInfo, y3m, y10y);
+
   return {
     ...growthInfo,
     forecasting,
@@ -691,6 +693,103 @@ export function runFullMacroCmeSimulation(inputs) {
     correlationLabels,
     correlationMatrix,
     equityRiskPremium,
+    part2BuildingBlocks,
+  };
+}
+
+/**
+ * v2.0 CME Part 2: Asset-Class Specific Building Blocks
+ * (Grinold-Kroner, Singer-Terhaar, Fixed Income Yield/Rolldown/Duration/Default, Real Estate Cap Rate + NOI)
+ */
+export function calculatePart2BuildingBlocks(inputs, growthInfo, policyInfo, y3m, y10y) {
+  const phi = clamp(inputs.globalIntegrationPhi ?? 0.85, 0, 1);
+  const betaGlobal = inputs.usEquityBetaToGlobal ?? 1.05;
+  const globalSharpe = inputs.globalMarketSharpe ?? 0.32;
+  const usEqVol = 16.5;
+
+  // 1. Equities: Grinold-Kroner & Singer-Terhaar
+  const dividendYield = round2(inputs.dividendYield);
+  const netBuybackYield = round2(inputs.netBuybackYield);
+  const realEarningsGrowth = round2(
+    growthInfo.shockAdjustedRealGdp + growthInfo.equityAnchorBreakdown.profitShareContrib
+  );
+  const inflationContrib = round2(inputs.expectedInflation);
+  const peReRating = round2(growthInfo.equityAnchorBreakdown.valuationContrib);
+  const grinoldKronerTotal = round2(
+    dividendYield + netBuybackYield + realEarningsGrowth + inflationContrib + peReRating
+  );
+
+  // Singer-Terhaar: weighted average of fully integrated & fully segmented risk premiums
+  const rhoGlobal = 0.88;
+  const erpIntegrated = rhoGlobal * usEqVol * globalSharpe * (betaGlobal / 1.0);
+  const erpSegmented = usEqVol * 0.36;
+  const singerTerhaarErp = round2(phi * erpIntegrated + (1 - phi) * erpSegmented);
+  const singerTerhaarTotal = round2(y3m + singerTerhaarErp);
+
+  // 2. Fixed Income Building Blocks
+  const igOas = inputs.igOasPct ?? 1.15;
+  const hyOas = inputs.hyOasPct ?? 3.65;
+  const shiftPct = (inputs.expectedCurveShiftBps ?? 0) / 100; // +bps -> yield rises -> price drops
+  const defaultBase =
+    inputs.hyExpectedDefaultLossPct ??
+    (inputs.cyclePhase === 'contraction' ? 3.8 : inputs.cyclePhase === 'slowdown' ? 2.4 : 1.35);
+
+  const rolldown10y = round2(Math.max(0, policyInfo.slope10Y2Y * 0.22));
+  const fixedIncomeBlocks = [
+    {
+      id: 'us-10y-treasury',
+      name: '美国10年期国债 (10Y UST)',
+      yieldIncome: round2(y10y),
+      rolldownReturn: rolldown10y,
+      durationPriceEffect: round2(-7.8 * shiftPct),
+      creditLossDrag: 0,
+      totalReturn: round2(y10y + rolldown10y - 7.8 * shiftPct),
+    },
+    {
+      id: 'us-ig-corp',
+      name: '美国投资级公司债 (IG Corp)',
+      yieldIncome: round2(y10y + igOas),
+      rolldownReturn: round2(rolldown10y * 0.85),
+      durationPriceEffect: round2(-6.8 * shiftPct),
+      creditLossDrag: -0.15,
+      totalReturn: round2(y10y + igOas + rolldown10y * 0.85 - 6.8 * shiftPct - 0.15),
+    },
+    {
+      id: 'us-high-yield',
+      name: '美国高收益信用债 (High Yield)',
+      yieldIncome: round2(y10y + hyOas),
+      rolldownReturn: round2(rolldown10y * 0.45),
+      durationPriceEffect: round2(-4.0 * shiftPct),
+      creditLossDrag: round2(-defaultBase),
+      totalReturn: round2(y10y + hyOas + rolldown10y * 0.45 - 4.0 * shiftPct - defaultBase),
+    },
+  ];
+
+  // 3. Real Estate: Cap Rate + NOI Growth + Cap Rate Change
+  const goingInCapRate = round2(inputs.reitCapRate ?? 5.4);
+  const noiGrowth = round2(inputs.reitNoiGrowth ?? growthInfo.nominalTrendGdp * 0.65);
+  const capRateValuationEffect = round2(inputs.reitCapRateChangeAnnual ?? 0.0);
+  const reitTotalReturn = round2(goingInCapRate + noiGrowth + capRateValuationEffect);
+
+  return {
+    equitiesGrinoldKroner: {
+      dividendYield,
+      netBuybackYield,
+      realEarningsGrowth,
+      inflationContrib,
+      peReRating,
+      grinoldKronerTotal,
+      singerTerhaarErp,
+      singerTerhaarTotal,
+      globalIntegrationPhi: phi,
+    },
+    fixedIncomeBlocks,
+    realEstateCapRate: {
+      goingInCapRate,
+      noiGrowth,
+      capRateValuationEffect,
+      totalReturn: reitTotalReturn,
+    },
   };
 }
 

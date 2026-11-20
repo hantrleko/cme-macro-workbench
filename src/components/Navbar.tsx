@@ -7,7 +7,7 @@ import {
   Database,
   FileSpreadsheet,
   SlidersHorizontal,
-  Flag,
+  Radio,
   RotateCcw,
 } from 'lucide-react';
 
@@ -18,6 +18,9 @@ interface NavbarProps {
   onResetPreset: () => void;
   horizonYears: 1 | 5 | 10;
   onChangeHorizon: (h: 1 | 5 | 10) => void;
+  dataMode: 'simulation' | 'fred-live';
+  onChangeDataMode: (mode: 'simulation' | 'fred-live') => void;
+  fredLatestQuarter?: string | null;
   onOpenSevenStepModal: () => void;
   onOpenFredBridge: () => void;
   onToggleSandbox: () => void;
@@ -31,6 +34,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onResetPreset,
   horizonYears,
   onChangeHorizon,
+  dataMode,
+  onChangeDataMode,
+  fredLatestQuarter,
   onOpenSevenStepModal,
   onOpenFredBridge,
   onToggleSandbox,
@@ -50,14 +56,39 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="text-[10px] font-mono tracking-widest text-cyan-400 font-bold uppercase">
                   Eugene Finance ｜ CFA III 宏观预期实验室
                 </span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-950/90 text-cyan-300 border border-cyan-700/60 font-mono font-bold flex items-center gap-1">
-                  <Flag className="w-2.5 h-2.5 text-cyan-400" /> US Macro 仿真引擎 v1.0
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950/90 text-emerald-300 border border-emerald-700/60 font-mono font-bold flex items-center gap-1">
+                  <Radio className="w-2.5 h-2.5 text-emerald-400 animate-pulse" /> v2.0 FRED + MVO
                 </span>
               </div>
               <h1 className="text-xs sm:text-sm font-bold text-slate-100">
                 美国宏观周期与资本市场预期工作台 (CME Workbench)
               </h1>
             </div>
+          </div>
+
+          {/* Data Mode Toggle: Simulation vs Real-World FRED */}
+          <div className="flex items-center gap-1 bg-slate-950/90 p-1 rounded-xl border border-slate-800">
+            <button
+              onClick={() => onChangeDataMode('simulation')}
+              className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold transition-all ${
+                dataMode === 'simulation'
+                  ? 'bg-cyan-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              仿真推演
+            </button>
+            <button
+              onClick={() => onChangeDataMode('fred-live')}
+              title={fredLatestQuarter ? `已载入 FRED 1971–${fredLatestQuarter} 真实美债与宏观数据` : '载入 FRED 真实数据'}
+              className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold transition-all flex items-center gap-1 ${
+                dataMode === 'fred-live'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <span>真实FRED</span>
+            </button>
           </div>
 
           {/* Horizon switcher on mobile/compact */}

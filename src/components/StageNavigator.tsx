@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldAlert, TrendingUp, Compass, Scale, Globe2, Layers } from 'lucide-react';
+import { ShieldAlert, TrendingUp, Compass, Scale, Globe2, Layers, PieChart } from 'lucide-react';
 
 export type MacroStageId =
   | 'data-bias'
@@ -7,7 +7,8 @@ export type MacroStageId =
   | 'cycle-forecasting'
   | 'policy-curve'
   | 'international'
-  | 'cme-synthesis';
+  | 'cme-synthesis'
+  | 'portfolio-optimizer';
 
 interface StageDef {
   id: MacroStageId;
@@ -57,8 +58,15 @@ export const WORKBENCH_STAGES: StageDef[] = [
     id: 'cme-synthesis',
     step: '06',
     title: '7步法CME跨资产矩阵',
-    figureRef: '图2 · 跨资产预期与相关性',
+    figureRef: '图2 · Part 2 精细定价',
     icon: Layers,
+  },
+  {
+    id: 'portfolio-optimizer',
+    step: '07',
+    title: '组合优化与蒙特卡洛',
+    figureRef: 'MVO · Risk Parity · CVaR',
+    icon: PieChart,
   },
 ];
 
@@ -74,7 +82,7 @@ export const StageNavigator: React.FC<StageNavigatorProps> = ({
   return (
     <div className="bg-slate-950/80 border-b border-slate-800/80">
       <div className="max-w-7xl mx-auto px-4 py-2.5">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
           {WORKBENCH_STAGES.map((stage) => {
             const Icon = stage.icon;
             const active = currentStage === stage.id;

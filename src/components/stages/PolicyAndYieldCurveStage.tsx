@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { MacroEngineOutput, MacroSimulationInputs, PolicyStance } from '../../types/macro';
+import { FredQuarterlyRecord, MacroEngineOutput, MacroSimulationInputs, PolicyStance } from '../../types/macro';
 import { EChartWrapper } from '../EChartWrapper';
 import { formatBps, formatPct } from '../../utils/formatters';
 import { Scale, ZapOff, ShieldAlert, TrendingUp } from 'lucide-react';
@@ -9,21 +9,67 @@ interface PolicyAndYieldCurveStageProps {
   inputs: MacroSimulationInputs;
   output: MacroEngineOutput;
   onUpdateInputs: (patch: Partial<MacroSimulationInputs>) => void;
+  activeFredRecord?: FredQuarterlyRecord | null;
 }
 
 export const PolicyAndYieldCurveStage: React.FC<PolicyAndYieldCurveStageProps> = ({
   inputs,
   output,
   onUpdateInputs,
+  activeFredRecord,
 }) => {
   // Yield Curve Chart (3M -> 30Y)
   const yieldCurveOption = useMemo<EChartsOption>(() => {
     const tenors = output.policy.yieldCurve.map((p) => p.tenor);
+    const legendItems = ['当前仿真美债曲线', '无QE/LDI反事实曲线', '商业周期基准曲线'];
+    const seriesList: EChartsOption['series'] = [
+      {
+        name: '当前仿真美债曲线',
+        type: 'line',
+        smooth: true,
+        data: output.policy.yieldCurve.map((p) => p.simulatedYield),
+        lineStyle: { color: '#22d3ee', width: 3 },
+        itemStyle: { color: '#22d3ee' },
+        symbolSize: 8,
+      },
+      {
+        name: '无QE/LDI反事实曲线',
+        type: 'line',
+        smooth: true,
+        data: output.policy.yieldCurve.map((p) => p.noQeCounterfactualYield),
+        lineStyle: { color: '#a78bfa', width: 2, type: 'dashed' },
+        itemStyle: { color: '#a78bfa' },
+      },
+      {
+        name: '商业周期基准曲线',
+        type: 'line',
+        smooth: true,
+        data: output.policy.yieldCurve.map((p) => p.cycleBenchmarkYield),
+        lineStyle: { color: '#64748b', width: 1.5, type: 'dotted' },
+        itemStyle: { color: '#64748b' },
+      },
+    ];
+
+    if (activeFredRecord) {
+      const fredLabel = `FRED真实美债 (${activeFredRecord.quarter})`;
+      legendItems.unshift(fredLabel);
+      seriesList.unshift({
+        name: fredLabel,
+        type: 'line',
+        smooth: true,
+        data: tenors.map((t) => activeFredRecord.curve[t as keyof FredQuarterlyRecord['curve']]),
+        lineStyle: { color: '#34d399', width: 3.5 },
+        itemStyle: { color: '#34d399' },
+        symbol: 'diamond',
+        symbolSize: 9,
+      });
+    }
+
     return {
       backgroundColor: 'transparent',
       tooltip: { trigger: 'axis', backgroundColor: '#0f172a', borderColor: '#334155', textStyle: { color: '#e2e8f0' } },
       legend: {
-        data: ['当前仿真美债曲线', '无QE/LDI反事实曲线', '商业周期基准曲线'],
+        data: legendItems,
         textStyle: { color: '#94a3b8', fontSize: 11 },
         top: 0,
       },
@@ -39,35 +85,9 @@ export const PolicyAndYieldCurveStage: React.FC<PolicyAndYieldCurveStageProps> =
         axisLabel: { color: '#94a3b8', formatter: '{value}%', fontSize: 10 },
         splitLine: { lineStyle: { color: '#1e293b' } },
       },
-      series: [
-        {
-          name: '当前仿真美债曲线',
-          type: 'line',
-          smooth: true,
-          data: output.policy.yieldCurve.map((p) => p.simulatedYield),
-          lineStyle: { color: '#22d3ee', width: 3 },
-          itemStyle: { color: '#22d3ee' },
-          symbolSize: 8,
-        },
-        {
-          name: '无QE/LDI反事实曲线',
-          type: 'line',
-          smooth: true,
-          data: output.policy.yieldCurve.map((p) => p.noQeCounterfactualYield),
-          lineStyle: { color: '#a78bfa', width: 2, type: 'dashed' },
-          itemStyle: { color: '#a78bfa' },
-        },
-        {
-          name: '商业周期基准曲线',
-          type: 'line',
-          smooth: true,
-          data: output.policy.yieldCurve.map((p) => p.cycleBenchmarkYield),
-          lineStyle: { color: '#64748b', width: 1.5, type: 'dotted' },
-          itemStyle: { color: '#64748b' },
-        },
-      ],
+      series: seriesList,
     };
-  }, [output.policy.yieldCurve]);
+  }, [output.policy.yieldCurve, activeFredRecord]);
 
   const policyMixCells: Array<{
     fiscal: PolicyStance;

@@ -7,6 +7,11 @@ import {
   calculateInternationalLinkages,
   runFullMacroCmeSimulation,
 } from '../src/utils/macroMathCore.js';
+import {
+  solveRiskParityWeights,
+  buildCovarianceMatrix,
+  runPortfolioOptimizationAndMonteCarlo,
+} from '../src/utils/portfolioMathCore.js';
 
 const BASELINE_INPUTS = {
   shrinkageLambda: 0.7,
@@ -142,5 +147,56 @@ test('US Macro & CME Engine Unit Tests', async (t) => {
     );
     assert.equal(looseLooseOut.assetForecasts.length, 7);
     assert.equal(looseLooseOut.correlationMatrix.length, 7);
+  });
+
+  await t.test('v2.0 CME Part 2 Building Blocks compute Grinold-Kroner, Fixed Income & Cap Rate cleanly', () => {
+    const out = runFullMacroCmeSimulation({
+      ...BASELINE_INPUTS,
+      globalIntegrationPhi: 0.85,
+      igOasPct: 1.15,
+      hyOasPct: 3.65,
+      expectedCurveShiftBps: 25,
+      reitCapRate: 5.5,
+      reitNoiGrowth: 3.0,
+      reitCapRateChangeAnnual: -0.5,
+    });
+    const gk = out.part2BuildingBlocks.equitiesGrinoldKroner;
+    assert.ok(Math.abs(gk.grinoldKronerTotal - (gk.dividendYield + gk.netBuybackYield + gk.realEarningsGrowth + gk.inflationContrib + gk.peReRating)) < 0.05);
+    assert.equal(out.part2BuildingBlocks.fixedIncomeBlocks.length, 3);
+    assert.equal(out.part2BuildingBlocks.realEstateCapRate.totalReturn, 8.0);
+  });
+
+  await t.test('v2.0 Portfolio Optimizer (MVO & Risk Parity) + 1000-Run Monte Carlo Corridor invariants', () => {
+    const out = runFullMacroCmeSimulation(BASELINE_INPUTS);
+    const mvo = runPortfolioOptimizationAndMonteCarlo(BASELINE_INPUTS, out, {
+      mode: 'mvo',
+      riskAversionGamma: 3.5,
+      maxWeight: 0.45,
+      includePesoJump: true,
+    });
+
+    const sumCal = mvo.allocations.reduce((s, r) => s + r.calibratedWeightPct, 0);
+    const sumNaive = mvo.allocations.reduce((s, r) => s + r.naiveWeightPct, 0);
+    assert.ok(Math.abs(sumCal - 100) < 0.2, `Calibrated weights must sum to ~100%, got ${sumCal}`);
+    assert.ok(Math.abs(sumNaive - 100) < 0.2, `Naive weights must sum to ~100%, got ${sumNaive}`);
+
+    // Appraisal smoothing trap: naive optimizer allocates more to REITs than Geltner-unsmoothed optimizer
+    const reitRow = mvo.allocations.find((a) => a.id === 'us-reits');
+    assert.ok(
+      reitRow.naiveWeightPct >= reitRow.calibratedWeightPct,
+      `Expected naive smoothed REIT weight (${reitRow.naiveWeightPct}%) >= calibrated (${reitRow.calibratedWeightPct}%)`
+    );
+
+    // Monte Carlo corridor monotonicity at horizon end
+    const endPt = mvo.monteCarloCorridor[mvo.monteCarloCorridor.length - 1];
+    assert.ok(endPt.p10 <= endPt.p25 && endPt.p25 <= endPt.p50 && endPt.p50 <= endPt.p75 && endPt.p75 <= endPt.p90);
+    assert.ok(mvo.calibratedMetrics.cvar95 <= mvo.calibratedMetrics.var95);
+
+    // Risk Parity check
+    const vols = out.assetForecasts.map((a) => a.trueUnsmoothedVol);
+    const cov = buildCovarianceMatrix(vols, out.correlationMatrix);
+    const rpW = solveRiskParityWeights(cov, 0.5);
+    const rpSum = rpW.reduce((a, b) => a + b, 0);
+    assert.ok(Math.abs(rpSum - 1) < 1e-4);
   });
 });

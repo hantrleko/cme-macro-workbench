@@ -8,12 +8,14 @@ import type { EChartsOption } from 'echarts';
 interface CmeSynthesisStageProps {
   inputs: MacroSimulationInputs;
   output: MacroEngineOutput;
+  onUpdateInputs: (patch: Partial<MacroSimulationInputs>) => void;
   onOpenSevenStepModal: () => void;
 }
 
 export const CmeSynthesisStage: React.FC<CmeSynthesisStageProps> = ({
   inputs,
   output,
+  onUpdateInputs,
   onOpenSevenStepModal,
 }) => {
   // Chart 1: Efficient Frontier Scatter (True Unsmoothed Vol vs Blended Expected Return)
@@ -247,6 +249,191 @@ export const CmeSynthesisStage: React.FC<CmeSynthesisStageProps> = ({
             7×7 条件相关性矩阵 (股债相关性随通胀情景动态切换正负)
           </h4>
           <EChartWrapper option={corrHeatmapOption} height="280px" />
+        </div>
+      </div>
+
+      {/* v2.0 CME Part 2: Asset-Class Specific Pricing Building Blocks */}
+      <div className="glass-card p-4 rounded-2xl space-y-4 border border-indigo-800/40">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+          <div>
+            <span className="text-[10px] font-mono text-indigo-400 uppercase font-bold">
+              v2.0 CME Part 2 · 股 / 债 / 房 专属结构化定价模型 (Building Blocks)
+            </span>
+            <h3 className="text-sm font-bold text-slate-100 mt-0.5">
+              Grinold-Kroner 股票拆解 · Singer-Terhaar 跨国一体化 · 债券收益积木 · 商业地产 Cap Rate 模型
+            </h3>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 text-xs">
+          {/* 1. Equities: Grinold-Kroner & Singer-Terhaar */}
+          <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="font-bold text-cyan-300">1. 美股 Grinold-Kroner & Singer-Terhaar</span>
+              <span className="font-mono font-bold text-white">
+                {formatPct(output.part2BuildingBlocks.equitiesGrinoldKroner.grinoldKronerTotal)}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 font-mono text-[11px]">
+              <div className="bg-slate-900 p-2 rounded-lg">
+                <span className="text-slate-400 block text-[10px]">股息率 D/P</span>
+                <span className="text-cyan-300 font-bold">
+                  +{output.part2BuildingBlocks.equitiesGrinoldKroner.dividendYield.toFixed(2)}%
+                </span>
+              </div>
+              <div className="bg-slate-900 p-2 rounded-lg">
+                <span className="text-slate-400 block text-[10px]">净回购 (-ΔS)</span>
+                <span className="text-emerald-300 font-bold">
+                  +{output.part2BuildingBlocks.equitiesGrinoldKroner.netBuybackYield.toFixed(2)}%
+                </span>
+              </div>
+              <div className="bg-slate-900 p-2 rounded-lg">
+                <span className="text-slate-400 block text-[10px]">实际盈利 + 通胀</span>
+                <span className="text-slate-200 font-bold">
+                  +{(
+                    output.part2BuildingBlocks.equitiesGrinoldKroner.realEarningsGrowth +
+                    output.part2BuildingBlocks.equitiesGrinoldKroner.inflationContrib
+                  ).toFixed(2)}%
+                </span>
+              </div>
+              <div className="bg-slate-900 p-2 rounded-lg">
+                <span className="text-slate-400 block text-[10px]">估值变化 ΔP/E</span>
+                <span
+                  className={`font-bold ${
+                    output.part2BuildingBlocks.equitiesGrinoldKroner.peReRating >= 0
+                      ? 'text-emerald-300'
+                      : 'text-rose-400'
+                  }`}
+                >
+                  {formatPct(output.part2BuildingBlocks.equitiesGrinoldKroner.peReRating, 2, true)}
+                </span>
+              </div>
+            </div>
+
+            <div className="pt-1 border-t border-slate-800 space-y-1.5">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-slate-300">Singer-Terhaar 一体化程度 φ</span>
+                <span className="font-mono text-indigo-300 font-bold">
+                  {(inputs.globalIntegrationPhi ?? 0.85).toFixed(2)}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={inputs.globalIntegrationPhi ?? 0.85}
+                onChange={(e) => onUpdateInputs({ globalIntegrationPhi: parseFloat(e.target.value) })}
+                className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
+              />
+              <div className="text-[11px] font-mono text-slate-400">
+                Singer-Terhaar ERP:{' '}
+                <strong className="text-indigo-300">
+                  {formatPct(output.part2BuildingBlocks.equitiesGrinoldKroner.singerTerhaarErp)}
+                </strong>{' '}
+                (总预期 {formatPct(output.part2BuildingBlocks.equitiesGrinoldKroner.singerTerhaarTotal)})
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Fixed Income Building Blocks */}
+          <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="font-bold text-emerald-300">2. 固定收益 Building Blocks</span>
+              <span className="font-mono text-[11px] text-slate-400">
+                预期曲线平移 {(inputs.expectedCurveShiftBps ?? 0) >= 0 ? '+' : ''}
+                {inputs.expectedCurveShiftBps ?? 0} bps
+              </span>
+            </div>
+            <input
+              type="range"
+              min={-100}
+              max={100}
+              step={10}
+              value={inputs.expectedCurveShiftBps ?? 0}
+              onChange={(e) => onUpdateInputs({ expectedCurveShiftBps: parseFloat(e.target.value) })}
+              className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
+            />
+            <div className="space-y-1.5 text-[11px]">
+              {output.part2BuildingBlocks.fixedIncomeBlocks.map((b) => (
+                <div key={b.id} className="bg-slate-900/90 p-2 rounded-lg border border-slate-800/80">
+                  <div className="flex justify-between font-bold">
+                    <span className="text-slate-200">{b.name}</span>
+                    <span className="font-mono text-emerald-300">{formatPct(b.totalReturn)}</span>
+                  </div>
+                  <div className="font-mono text-[10px] text-slate-400 mt-0.5">
+                    票息 {b.yieldIncome.toFixed(2)}% + 骑乘 {b.rolldownReturn.toFixed(2)}% + 久期{' '}
+                    {b.durationPriceEffect >= 0 ? '+' : ''}
+                    {b.durationPriceEffect.toFixed(2)}% − 违约 {Math.abs(b.creditLossDrag).toFixed(2)}%
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 3. Real Estate: Cap Rate + NOI Model */}
+          <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="font-bold text-amber-300">3. 商业地产 Cap Rate + NOI 模型</span>
+              <span className="font-mono font-bold text-amber-200">
+                {formatPct(output.part2BuildingBlocks.realEstateCapRate.totalReturn)}
+              </span>
+            </div>
+            <div className="space-y-2 text-[11px]">
+              <div className="space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-slate-300">初始资本化率 (Going-in Cap Rate)</span>
+                  <span className="font-mono text-amber-300 font-bold">
+                    {(inputs.reitCapRate ?? 5.4).toFixed(2)}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={3.5}
+                  max={8.5}
+                  step={0.1}
+                  value={inputs.reitCapRate ?? 5.4}
+                  onChange={(e) => onUpdateInputs({ reitCapRate: parseFloat(e.target.value) })}
+                  className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-slate-300">Cap Rate 压缩(+)/扩张(-) 估值效应</span>
+                  <span className="font-mono text-amber-300 font-bold">
+                    {(inputs.reitCapRateChangeAnnual ?? 0).toFixed(2)}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={-2.5}
+                  max={2.5}
+                  step={0.1}
+                  value={inputs.reitCapRateChangeAnnual ?? 0}
+                  onChange={(e) => onUpdateInputs({ reitCapRateChangeAnnual: parseFloat(e.target.value) })}
+                  className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+            </div>
+
+            <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800 font-mono text-[11px] space-y-1">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Cap Rate 现金收益:</span>
+                <span className="text-slate-200">{output.part2BuildingBlocks.realEstateCapRate.goingInCapRate.toFixed(2)}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">NOI 净营运收入增长:</span>
+                <span className="text-emerald-300">+{output.part2BuildingBlocks.realEstateCapRate.noiGrowth.toFixed(2)}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Cap Rate 变动资本利得:</span>
+                <span className={output.part2BuildingBlocks.realEstateCapRate.capRateValuationEffect >= 0 ? 'text-emerald-300' : 'text-rose-400'}>
+                  {formatPct(output.part2BuildingBlocks.realEstateCapRate.capRateValuationEffect, 2, true)}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

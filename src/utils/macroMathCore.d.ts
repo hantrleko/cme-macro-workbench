@@ -42,6 +42,13 @@ export function calculateForecastingEnsemble(
   policyInfo: MacroEngineOutput['policy']
 ): MacroEngineOutput['forecasting'];
 export function runFullMacroCmeSimulation(inputs: MacroSimulationInputs): MacroEngineOutput;
+export function calculatePart2BuildingBlocks(
+  inputs: MacroSimulationInputs,
+  growthInfo: ReturnType<typeof calculateTrendGrowthAndEquityAnchor>,
+  policyInfo: MacroEngineOutput['policy'],
+  y3m: number,
+  y10y: number
+): MacroEngineOutput['part2BuildingBlocks'];
 export function simulateCmeOutcomeFeedback(
   inputs: MacroSimulationInputs,
   engineOutput: MacroEngineOutput,

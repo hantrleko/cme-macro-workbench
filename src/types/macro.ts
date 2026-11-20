@@ -98,6 +98,18 @@ export interface MacroSimulationInputs {
 
   // Stage 6: CME Horizon
   horizonYears: 1 | 5 | 10;
+
+  // v2.0 CME Part 2: Asset-Class Specific Pricing Parameters (optional with engine defaults)
+  globalIntegrationPhi?: number; // 0..1 Singer-Terhaar global market integration
+  usEquityBetaToGlobal?: number; // Beta to global market portfolio
+  globalMarketSharpe?: number; // Global Sharpe ratio benchmark
+  igOasPct?: number; // US IG Corporate OAS (%)
+  hyOasPct?: number; // US High Yield OAS (%)
+  expectedCurveShiftBps?: number; // Expected annual parallel yield shift (bps)
+  hyExpectedDefaultLossPct?: number; // Expected annual credit loss on HY (%)
+  reitCapRate?: number; // Going-in Real Estate Cap Rate (%)
+  reitNoiGrowth?: number; // Expected NOI growth (%)
+  reitCapRateChangeAnnual?: number; // Annual Cap Rate compression (+) / expansion (-) (%)
 }
 
 export interface MacroRegimePreset {
@@ -237,6 +249,112 @@ export interface MacroEngineOutput {
   correlationLabels: string[];
   correlationMatrix: number[][];
   equityRiskPremium: number;
+
+  // v2.0 CME Part 2 Building Blocks
+  part2BuildingBlocks: {
+    equitiesGrinoldKroner: {
+      dividendYield: number;
+      netBuybackYield: number;
+      realEarningsGrowth: number;
+      inflationContrib: number;
+      peReRating: number;
+      grinoldKronerTotal: number;
+      singerTerhaarErp: number;
+      singerTerhaarTotal: number;
+      globalIntegrationPhi: number;
+    };
+    fixedIncomeBlocks: Array<{
+      id: string;
+      name: string;
+      yieldIncome: number;
+      rolldownReturn: number;
+      durationPriceEffect: number;
+      creditLossDrag: number;
+      totalReturn: number;
+    }>;
+    realEstateCapRate: {
+      goingInCapRate: number;
+      noiGrowth: number;
+      capRateValuationEffect: number;
+      totalReturn: number;
+    };
+  };
+}
+
+export interface FredQuarterlyRecord {
+  quarter: string;
+  fedFunds: number;
+  corePceYoy: number;
+  realGdpYoy: number;
+  outputGap: number;
+  igOas: number;
+  hyOas: number;
+  govDebtPctGdp: number;
+  fiscalDeficitPctGdp: number;
+  netExportsPctGdp: number;
+  curve: {
+    '3M': number;
+    '1Y': number;
+    '2Y': number;
+    '5Y': number;
+    '10Y': number;
+    '20Y': number;
+    '30Y': number;
+  };
+}
+
+export interface FredLiveDataset {
+  source: string;
+  updatedAt: string;
+  fetchedSeries: string[];
+  failedSeries: string[];
+  latestQuarter: string | null;
+  count: number;
+  records: FredQuarterlyRecord[];
+}
+
+export type PortfolioOptimizationMode = 'mvo' | 'risk-parity';
+
+export interface PortfolioAllocationRow {
+  id: string;
+  name: string;
+  chineseName: string;
+  naiveWeightPct: number;
+  calibratedWeightPct: number;
+  weightDeltaPct: number;
+  riskContributionPct: number;
+}
+
+export interface MonteCarloPathPoint {
+  year: number;
+  label: string;
+  p10: number;
+  p25: number;
+  p50: number;
+  p75: number;
+  p90: number;
+}
+
+export interface PortfolioOptimizerResult {
+  mode: PortfolioOptimizationMode;
+  allocations: PortfolioAllocationRow[];
+  naiveMetrics: {
+    expectedReturn: number;
+    apparentVol: number;
+    trueVol: number;
+    apparentSharpe: number;
+    trueSharpe: number;
+  };
+  calibratedMetrics: {
+    expectedReturn: number;
+    trueVol: number;
+    realReturn: number;
+    sharpeRatio: number;
+    var95: number;
+    cvar95: number;
+    probBeatInflation: number;
+  };
+  monteCarloCorridor: MonteCarloPathPoint[];
 }
 
 export interface CmeFeedbackSimulation {

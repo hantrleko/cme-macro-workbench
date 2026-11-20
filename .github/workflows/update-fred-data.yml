@@ -1,0 +1,36 @@
+name: Update US Macro Data from FRED
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch-fred:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Fetch latest FRED macro & Treasury curve data
+        run: python scripts/fetch_fred_data.py
+
+      - name: Commit updated us_macro_live.json if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/us_macro_live.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(data): update FRED US macro & Treasury curve snapshot"
+            git push
+          else
+            echo "No changes to us_macro_live.json"
+          fi

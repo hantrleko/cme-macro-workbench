@@ -7,4 +7,5 @@ export {
   calculateForecastingEnsemble,
   runFullMacroCmeSimulation,
   simulateCmeOutcomeFeedback,
+  calculatePart2BuildingBlocks,
 } from './macroMathCore.js';
